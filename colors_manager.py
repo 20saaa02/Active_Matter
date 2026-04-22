@@ -3,6 +3,25 @@ import plotly.colors as pc
 import numpy as np
 
 class ColorManager:
+    """
+    Utility class for assigning consistent colors to robots and related entities.
+
+    Purpose
+    -------
+    Provides color mappings for:
+    - Base robots (IDs < 100)
+    - Derived entities (particles, Fourier transforms)
+
+    Uses Plotly colorscales to generate visually distinct colors.
+
+    Parameters
+    ----------
+    coord_data : dict
+        Dictionary mapping robot_id -> trajectory data.
+        Used to extract all robot IDs.
+    colorscale : list
+        Plotly colorscale used for base robot colors.
+    """
     def __init__(self, coord_data, colorscale=px.colors.cyclical.Twilight):
         self.robot_ids = list(coord_data.keys())
         self.n = len(self.robot_ids)
@@ -22,6 +41,9 @@ class ColorManager:
             for i, rid in enumerate(self.robot_ids)
         }
     def get(self, robot_id):
+        """
+        Returns color for a given robot or derived entity.
+        """
         if robot_id<100:
             return self.id_to_color.get(robot_id, 'black')
         else:

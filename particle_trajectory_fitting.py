@@ -12,6 +12,39 @@ from colors_manager import ColorManager
 
 
 class ParticleTrajectoryFitting:
+    """
+    Class for fitting analytical particle trajectories to robot motion data.
+
+    Purpose
+    -------
+    Approximates robot trajectories using a parametric physical model
+    (based on oscillatory / rotational dynamics), and fits model parameters
+    using optimization (Differential Evolution).
+
+    Supports:
+    ---------
+    - Parameter estimation via optimization
+    - Simulation of particle-like trajectories
+    - Visualization of fitted vs real trajectories
+    - Saving fitted parameters and generated trajectories
+
+    Parameters
+    ----------
+    coord_data : Dict
+        Dictionary mapping robot_id -> trajectory array (T, 2)
+    robot_ids : List, optional
+        Subset of robot IDs to process (default: all)
+    maxiter : int
+        Number of iterations for optimization (0 = no optimization, use saved params)
+    colors : ColorManager, optional
+        Color manager for visualization
+    robots_form : str
+        Expected robot shape ('circle' only)
+    time_period : List[int]
+        Time interval [t0, t1]
+    show_flag : bool
+        Whether to display plots during fitting
+    """
     def __init__(self, coord_data: Dict, robot_ids: List = None, maxiter: int = 0, colors: ColorManager = None, robots_form: str = 'circle', time_period: List = [0,200],
                  show_flag: bool = True):
         if robots_form != 'circle':
@@ -34,6 +67,15 @@ class ParticleTrajectoryFitting:
         self.i = 0
 
     def omega_from_fft(self):
+        """
+        Estimates rotation direction (sign of angular velocity) using FFT.
+
+        Method
+        ------
+        - Computes FFT of complex trajectory signal (x + i*y)
+        - Finds dominant frequency
+        - Returns sign of angular velocity
+        """
         x = self.x[self.i,:50]
         y = self.y[self.i,:50]
         dt = 1
@@ -47,6 +89,29 @@ class ParticleTrajectoryFitting:
         return -np.sign(omega_peak)
 
     def simulate(self, params, show_flag=False, save_flag = False, flag_features_collection = False):
+        """
+        Simulates particle trajectory based on model parameters.
+
+        Parameters
+        ----------
+        params : list
+            Model parameters:
+            - RE : electric field scaling
+            - RB : radius-related parameter
+            - f  : phase angle
+            - k  : frequency scaling factor
+            - T  : total simulation time
+
+        Returns
+        -------
+        tuple or ndarray
+            - (x_model, y_model) if simulation
+            - (w, B, E0, Ex0, Ey0, W) if feature extraction mode
+
+        Notes
+        -----
+        Uses a physics-inspired oscillatory model with coupled sine/cosine dynamics.
+        """
         RE, RB, f, k, T = params
         m = 60
         q = 1.2
@@ -133,6 +198,11 @@ class ParticleTrajectoryFitting:
         return x_model, y_model
     
     def loss(self, params):
+        """
+        Loss function for optimization.
+
+        Computes RMSE between real trajectory and simulated trajectory.
+        """
         RE, RB, f, k, T = params
         eps = 1e-6
         if abs(k) < eps or abs(np.cos(f)) < eps or abs(np.sin(f)) < eps:
@@ -141,6 +211,30 @@ class ParticleTrajectoryFitting:
         return np.sqrt(np.mean((self.x[self.i,:] - x_model)**2 + (self.y[self.i,:] - y_model)**2)/2)
 
     def fit_particle_trajectories(self):
+        """
+        Main fitting procedure.
+
+        Workflow
+        --------
+        For each robot:
+        1. Estimate rotation direction (FFT)
+        2. Optimize model parameters (if maxiter > 0)
+        3. Compare with previously saved results
+        4. Save best parameters
+        5. Simulate and optionally visualize trajectory
+
+        Outputs
+        -------
+        - JSON file with fitted parameters:
+          circle/fit_all_particle_results.json
+        - Optional saved particle trajectories (.npz)
+        - Optional visualizations
+
+        Notes
+        -----
+        - If maxiter == 0, uses previously saved parameters
+        - Automatically updates results if better RMSE is found
+        """
         particle_parameters_file = "circle/fit_all_particle_results.json"
         if os.path.exists(particle_parameters_file):
             with open(particle_parameters_file, "r") as f:

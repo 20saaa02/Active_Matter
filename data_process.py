@@ -7,19 +7,39 @@ from sklearn.preprocessing import MinMaxScaler
 # ==========================
 class DataProcessor:
     """
-    Handles raw data extraction and normalization.
+    Class for preprocessing raw trajectory data.
 
-    Attributes
+    Responsibilities:
+    ----------------
+    - Extract structured coordinate and angle data from raw input
+    - Normalize coordinates into a common scale
+    - Store and manage processed trajectory data
+
+    Attributes:
     ----------
     data : List
-        Raw input data.
-    coord_data : dict
-        Dictionary storing coordinates per object.
-    angle_data : dict
-        Dictionary storing angle values per object.
-    normalized_coord_data : dict
-        Dictionary storing normalized coordinates.
+        Raw input data. Expected format:
+        [
+            [
+                (id, angle_in_degrees, [x, y]),
+                ...
+            ],
+            ...
+        ]
+
+    coord_data : Dict[int, List[List[float]]]
+        Dictionary mapping object ID → list of (x, y) coordinates
+
+    angle_data : Dict[int, List[float]]
+        Dictionary mapping object ID → list of angles (in radians)
+
+    normalized_coord_data : Dict[int, np.ndarray]
+        Dictionary mapping object ID → normalized trajectory (Nx2 array)
+
+    scaler_x, scaler_y : MinMaxScaler
+        Scalers used for normalization of x and y coordinates
     """
+
     def __init__(self, data: List):
         self.data = data
         self.coord_data = {}
@@ -28,7 +48,13 @@ class DataProcessor:
 
     # === Data extraction ===
     def extract_data(self) -> Tuple[Dict, Dict]:
-        """Extracts coordinate and angle data from raw input."""
+        """
+        Extract coordinate and angle data from raw input.
+
+        Converts:
+        - angles from degrees to radians
+        - groups data by object ID
+        """
         coord_data = {}
         angle_data = {}
 
@@ -52,13 +78,24 @@ class DataProcessor:
     # === Normalization ===
     @staticmethod
     def normalize_to_normal_distribution(data: np.ndarray) -> np.ndarray:
-        """Applies Box-Cox transformation and MinMax scaling to [0,1]."""
+        """
+        Normalize 1D data to [0, 1] range using MinMax scaling.
+        """
         scaler = MinMaxScaler(feature_range=(0, 1))
         normalized_data = scaler.fit_transform(data.reshape(-1, 1)).flatten()
         return normalized_data, scaler
 
     def normalize_all_coordinates(self) -> Dict:
-        """Normalizes all coordinates of all objects."""
+        """
+        Normalize all trajectory coordinates across all objects.
+
+        Workflow:
+        --------
+        1. Collect all x and y values globally
+        2. Fit MinMaxScaler separately for x and y
+        3. Apply normalization
+        4. Reconstruct per-object trajectories
+        """
         all_x, all_y = [], []
         
         for points in self.coord_data.values():
@@ -83,6 +120,33 @@ class DataProcessor:
         return self.normalized_coord_data
     
     def transform_new_robot(self, x_new, y_new, id_new):
+        """
+        Apply existing normalization to a new robot (particle) trajectory.
+
+        Important:
+        ----------
+        Uses already fitted scalers (scaler_x, scaler_y),
+        so must be called AFTER normalize_all_coordinates().
+
+        Parameters:
+        ----------
+        x_new : np.ndarray
+            New robot x-coordinates
+
+        y_new : np.ndarray
+            New robot y-coordinates
+
+        id_new : int
+            Identifier for the new robot
+
+        Returns:
+        -------
+        normalized_coord_data : Dict[int, np.ndarray]
+            Updated dictionary including new robot
+
+        key : int
+            ID of the added robot
+        """
         x_scaled = self.scaler_x.transform(x_new.reshape(-1,1))
         y_scaled = self.scaler_y.transform(y_new.reshape(-1,1))
 

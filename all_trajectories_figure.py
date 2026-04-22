@@ -16,14 +16,44 @@ from colors_manager import ColorManager
 
 
 class AllTrajectoriesFigure():
+    """
+    Visualization class for robot trajectories.
+
+    Purpose
+    -------
+    Provides multiple visualization modes for analyzing robot motion:
+    - Spatial trajectories (Y(X))
+    - Temporal trajectories (X(t), Y(t))
+    - Animated motion (for circular robots)
+    - Cluster-based trajectory visualization
+
+    Supports:
+    ---------
+    - Individual robots
+    - Subsets of robots
+    - Robot-particle pairs
+    - Clustered groups of robots
+
+    Parameters
+    ----------
+    coord_data : Dict
+        Dictionary mapping robot_id -> trajectory array of shape (T, 2)
+    robot_ids : List, optional
+        List of robot IDs to visualize (default: all)
+    colors : ColorManager, optional
+        Object responsible for assigning colors to robots
+    robots_form : str
+        Shape of robots ('circle' or 'oval')
+    time_period : List[int]
+        Time interval [t0, t1] for visualization
+    save_flag : bool
+        Whether to save generated figures
+    save_dir : str
+        Directory name for saving figures
+    """
     def __init__(self, coord_data: Dict, robot_ids: List = None, colors: ColorManager = None, robots_form: str = 'circle', time_period: List = [0,200],
                  save_flag: bool = False, save_dir: str = 'figures'):
-        '''
-        Первый случай: рисуем всех роботов, варьируя временной отрезок
-        Второй случай: рисуем конкретных роботов, варьируя временной отрезок
-        Третий случай: рисуем пары робот - частица, тогда время закладывается сразу в коордиаты
-        Четвертый: рисуем кластеры
-        '''
+
         self.coords = np.array([coord_data[r] for r in coord_data])
         self.x, self.y = self.coords[:,:,0], self.coords[:,:,1]
         self.robot_ids = robot_ids if robot_ids is not None else list(coord_data.keys())
@@ -68,6 +98,9 @@ class AllTrajectoriesFigure():
         self.has_fourier = any(r >= 200 for r in self.robot_ids)
 
     def add_start_end(self, fig, x, y, color, showlegend: bool = False):
+        """
+        Adds markers for start and end points of a trajectory.
+        """
         fig.add_trace(go.Scatter(
             x=[x[0]], y=[y[0]],
             mode='markers',
@@ -85,13 +118,33 @@ class AllTrajectoriesFigure():
         ))
     
     def is_particle(self, robot_id):
+        """
+        Checks whether a given ID corresponds to a particle.
+        """
         return 100 <= robot_id < 200
 
     def is_fourier(self, robot_id):
+        """
+        Checks whether a given ID corresponds to a Fourier-based trajectory.
+        """
         return robot_id >= 200
 
 
     def space_trajectories(self):
+        """
+        Plots spatial trajectories Y(X) for selected robots.
+
+        Features
+        --------
+        - Distinguishes robots, particles, and Fourier trajectories
+        - Marks start and end points
+        - Optionally overlays bounding circle
+        - Supports saving as interactive HTML
+
+        Output
+        ------
+        Plotly interactive figure
+        """
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True, vertical_spacing=0.05)
         if self.circle_shape is not None:
             fig.update_layout(
@@ -153,6 +206,18 @@ class AllTrajectoriesFigure():
             fig.write_html(file_path)
     
     def robots_moving(self):
+        """
+        Creates animated visualization of robots moving over time.
+
+        Limitations
+        -----------
+        - Works only for circular robots
+        - Does not support particles
+
+        Output
+        ------
+        Animated Plotly figure with play/pause controls
+        """
         if self.has_particles:
             print('Robots with IDs greater than 100 are considered particles and will not be animated.')
             return
@@ -257,6 +322,19 @@ class AllTrajectoriesFigure():
         fig.show()
 
     def temporal_trajectories(self):
+        """
+        Plots temporal trajectories X(t) and Y(t).
+
+        Features
+        --------
+        - Separate subplots for X(t) and Y(t)
+        - Supports robots, particles, and Fourier data
+        - Optional saving to HTML
+
+        Output
+        ------
+        Plotly figures for each robot
+        """
         t = np.arange(self.t0, self.t1)
         for i, robot_id in enumerate(self.robot_ids):
                 if robot_id<100:
@@ -362,10 +440,27 @@ class AllTrajectoriesFigure():
                         fig1.write_html(file_path)
 
     def plotly_to_matplotlib(self, color):
+        """
+        Converts Plotly RGB color string to Matplotlib-compatible tuple.
+        """
         nums = color.strip('rgb()').split(',')
         return tuple(int(n)/255 for n in nums)
 
     def clusters_trajectories(self, df):
+        """
+        Visualizes trajectories grouped by clusters.
+
+        Features
+        --------
+        - Spatial trajectories colored by cluster
+        - Temporal trajectories per cluster
+        - Pairplot of features colored by cluster
+
+        Output
+        ------
+        - Plotly trajectory plots
+        - Seaborn pairplot
+        """
         fig = make_subplots(rows=1, cols=1, shared_xaxes=True, vertical_spacing=0.05)
         self.add_start_end(fig, [None], [None], 'black', showlegend=True)
         n_clusters = df['cluster'].nunique()

@@ -14,6 +14,33 @@ from colors_manager import ColorManager
 
 
 class FeatureCollection:
+    """
+    FeatureCollection is responsible for extracting descriptive features from robot trajectories.
+
+    It combines:
+    - Fourier-based trajectory approximation features
+    - Particle model fitting features
+    - Kinematic trajectory features 
+
+    It also provides tools for:
+    - Saving extracted features to CSV
+    - Visualizing feature distributions and correlations
+
+    Parameters
+    ----------
+    coord_data : Dict[int, np.ndarray]
+        Dictionary mapping robot_id → trajectory array of shape (T, 2)
+    colors : ColorManager, optional
+        Object for consistent color mapping in visualizations
+    robots_form : str, default 'circle'
+        Type of robots (affects particle modeling logic)
+    time_period : List[int], default [0, 200]
+        Time slice of trajectory to use
+    show_flag : bool, default False
+        Whether to visualize intermediate results
+    save_flag : bool, default False
+        Whether to save plots and outputs
+    """
     def __init__(self, coord_data: Dict[int, np.ndarray],   colors: ColorManager = None, robots_form: str = 'circle', time_period: List = [0,200],
                   show_flag: bool = False, save_flag: bool = False):
         self.t0, self.t1 = time_period
@@ -35,6 +62,25 @@ class FeatureCollection:
         self.data['robot_id'] = self.robot_ids
 
     def fourier_features(self):
+        """
+        Extract Fourier-based features from trajectories.
+
+        This method:
+        - Computes FFT of complex trajectory signal (x + i*y)
+        - Selects dominant frequency components
+        - Reconstructs trajectory using top-k harmonics
+        - Computes reconstruction error (RMSE)
+        - Computes residual standard deviation
+
+        Features added:
+        - omega_z_* : dominant angular frequencies
+        - amp_z_*   : amplitudes of dominant components
+        - std_x, std_y : residual standard deviation
+        - rmse_comp : reconstruction error
+
+        Optional:
+        - Visualizes original vs reconstructed trajectories if show_flag=True
+        """
         k=2
         N, T = self.x.shape
         t = np.arange(T)[None, None, :]
@@ -135,6 +181,24 @@ class FeatureCollection:
         '''
         
     def features_of_particle(self):
+        """
+        Extract features based on particle trajectory fitting.
+
+        Uses precomputed fitting parameters (from JSON file) and simulates:
+        - Angular frequencies (w, W)
+        - Field-related parameters (E0, Ex0, Ey0)
+        - Phase (f)
+        - Velocity-related constant (B)
+
+        Also includes:
+        - RMSE of particle model fit
+        - Binary label indicating successful particle-like behavior
+
+        Features added:
+        - rmse_particle
+        - particle_successfull
+        - w, W, f, B, E0, Ex0, Ey0
+        """
         N = self.x.shape[0]
         f = np.zeros((N, 1))
         B = np.zeros((N, 1))
@@ -184,6 +248,24 @@ class FeatureCollection:
 
 
     def features_of_trajectory(self):
+        """
+        Compute kinematic features of trajectories.
+
+        Includes:
+        - Mean velocity magnitude
+        - Mean curvature (absolute)
+        - Curvature variance
+
+        Computation:
+        - Velocity via numerical gradient
+        - Acceleration via second gradient
+        - Curvature using standard 2D formula
+
+        Features added:
+        - mean_v
+        - mean_cuv
+        - var_cuv
+        """
         N, T = self.x.shape
         mean_v = np.zeros((N, 1))
         mean_cuv = np.zeros((N, 1))
@@ -203,6 +285,25 @@ class FeatureCollection:
         self.data['var_cuv'] = cuv_var.flatten().tolist()
         
     def feature_collection(self):
+        """
+        Main pipeline for feature extraction.
+
+        Steps:
+        1. Compute Fourier-based features
+        2. If robots are circular:
+            - Compute particle-based features
+            - Compute difference between Fourier and particle RMSE
+        3. Compute trajectory kinematic features
+        4. Assemble all features into DataFrame
+        5. Save results to CSV file
+
+        Outputs:
+        - self.df (pandas DataFrame)
+        - CSV file: '{robots_form}/robots_features.csv'
+
+        Prints:
+        - Summary statistics of reconstruction errors
+        """
         self.fourier_features()
         if self.robots_form == 'circle':
             self.features_of_particle()
@@ -220,6 +321,21 @@ class FeatureCollection:
         self.df.set_index('robot_id').to_csv(f'{self.robots_form}/robots_features.csv')
 
     def feature_analysis(self):
+        """
+        Perform exploratory analysis of extracted features.
+
+        Includes:
+        - Correlation heatmap (Pearson correlation)
+        - Histograms with KDE for each feature
+
+        Visualization:
+        - Heatmap of feature correlations
+        - Distribution plots for each feature
+
+        Saving:
+        - heatmap.pdf
+        - histograms.pdf
+        """
         corr = self.df.corr()
 
         mask = np.triu(np.ones_like(corr, dtype=bool))
