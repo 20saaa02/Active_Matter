@@ -57,6 +57,7 @@ class AllTrajectoriesFigure():
         self.coords = np.array([coord_data[r] for r in coord_data])
         self.x, self.y = self.coords[:,:,0], self.coords[:,:,1]
         self.robot_ids = robot_ids if robot_ids is not None else list(coord_data.keys())
+        print(self.robot_ids)
         self.robots_form = robots_form
 
         self.colors = colors
@@ -584,4 +585,84 @@ class AllTrajectoriesFigure():
         plt.show()
         
         
+    def pair_trajectories(self):
+        t = np.arange(self.t0, self.t1)
+        fig1 = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05)
+        color = self.colors.get(self.robot_ids[0])
+        fig1.add_trace(go.Scatter(
+                            x=t, y=self.x[0], mode='lines',
+                            line=dict(color=color, width=1), name=f'X(t), Y(t) trajectory, {self.robots_form} object {self.robot_ids[0]}',
+                            legendgroup='x'), 
+                            row=1, col=1)
+        fig1.add_trace(go.Scatter(
+                            x=t, y=self.y[0], mode='lines',
+                            line=dict(color=color, width=1), showlegend=False  ), 
+                            row=2, col=1)
+        color = self.colors.get(self.robot_ids[1])
+        fig1.add_trace(go.Scatter(
+                            x=t, y=self.x[1], mode='lines',
+                            line=dict(color=color, width=1), name=f'X(t), Y(t) trajectory, {self.robots_form} object {self.robot_ids[1]}',
+                            legendgroup='x'), 
+                            row=1, col=1)
+        fig1.add_trace(go.Scatter(
+                            x=t, y=self.y[1], mode='lines',
+                            line=dict(color=color, width=1), showlegend=False  ), 
+                            row=2, col=1)
+        legend_tracegroupgap = 305
+
+
+        fig1.update_layout(
+                    height=700,
+                    width=1000,
+                    plot_bgcolor='white',
+                    font=dict(family="Inter", size=16),
+                    margin=dict(l=40, r=10, t=20, b=60),
+                    legend=dict(
+                        x=0.70,      
+                        y=1,   
+                        xanchor='left',
+                        yanchor='top',
+                        bgcolor='rgba(0,0,0,0)'
+                    ),
+                    legend_tracegroupgap=legend_tracegroupgap,
+                )
+
+        fig1.update_xaxes(
+            tickmode='array',
+            showgrid=True, mirror=True,showline=True, linewidth=1, linecolor='black',#gridcolor='lightgrey',
+            row=1, col=1
+        )
+        fig1.update_xaxes(
+            title_text="t",
+            tickmode='array',
+            showgrid=True, mirror=True, showline=True, linewidth=1, linecolor='black',#gridcolor='lightgrey',
+            row=2, col=1
+        )
+        fig1.update_yaxes(
+            title_text="X(t)",
+            row=1, col=1,
+            showline=True, linewidth=1, linecolor='black',
+            mirror=True, #gridcolor='lightgrey'
+        )
+        fig1.update_yaxes(
+            title_text="Y(t)", 
+            row=2, col=1,
+            showline=True, linewidth=1, linecolor='black',
+            mirror=True, #gridcolor='lightgrey'
+            )
         
+        for x_val in [32,36, 90,95, 146,152,192,198]:  
+            fig1.add_vline(
+                x=x_val,
+                line=dict(color='gray', width=1.5, dash='dot'),
+                row='all', col=1
+            )
+
+        if self.save_flag:
+            file_path = self.save_dir / f"X(t)_Y(t)_trajectories_{self.robot_ids[0]}_{self.robot_ids[1]}.html"
+            fig1.write_html(file_path)
+        
+        fig1.show()
+
+
+            
